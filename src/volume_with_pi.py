@@ -1,7 +1,10 @@
 import tkinter as tk
-from icecream import ic
+from icecream import ic #debug
+from ctypes import cast, POINTER
+from comtypes import CLSCTX_ALL
+from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
 
-#TODO: 优化代码结构
+#TODO: 优化代码结构，增加类
 
 root = tk.Tk()
 screen_w = root.winfo_screenwidth()
@@ -19,6 +22,7 @@ pi_previous = tk.StringVar()
 pi_next = tk.StringVar()
 muted = tk.BooleanVar()
 pi_x = 0
+#TODO：优化按钮布局，当前音量固定显示
 frame_pi = tk.Frame(root)
 frame_btn = tk.Frame(root)
 label_previous = tk.Label(frame_pi,textvariable=pi_previous)
@@ -34,17 +38,38 @@ def mute():
 
 check_mute = tk.Checkbutton(frame_btn,text='Mute',var = muted,command=mute)
 
-#TODO：获取当前音量
-def volume_current():
-    return 10
+def volume_system():
+    devices = AudioUtilities.GetSpeakers()
+    interface = devices.Activate(
+    IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
+    volume = cast(interface, POINTER(IAudioEndpointVolume))
+    current = round(volume.GetMasterVolumeLevelScalar() * 100)
+    ic(volume.GetVolumeRange())
+    ic(current)
+    ic(volume.GetMute())
+    if volume.GetMute():
+        return 0
+    else:
+        return current
 
-#TODO 依据音量寻找61位圆周率中最接近的值，返回第一个位置
+#TODO 更好的方法？
 def volume_to_pi(volume):
-    return 10
+    if volume == 100:
+        volume = '99'
+        return pi.find(volume)
+    elif volume == 0:
+        return -1
+    else:
+        return 1
 
-#TODO：增加音量设置
+#BUG: 调整音量有时会报错
 def set_volume(value):
-    pass
+    devices = AudioUtilities.GetSpeakers()
+    interface = devices.Activate(
+    IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
+    volume = cast(interface, POINTER(IAudioEndpointVolume))
+    ic(value)
+    volume.SetMasterVolumeLevelScalar(value / 100,None)
 
 def pi_to_volume(location):
     if 0 <= location < len(pi)-2: 
@@ -53,8 +78,6 @@ def pi_to_volume(location):
         return int(pi[location:])
     else:
         return -1
-
-
 
 def pi_split(location):
     previous = pi[0:location]
@@ -95,12 +118,16 @@ def display():
         previous,_next = pi_split(pi_x)
         pi_show(previous,volume,_next)
 
+#BUG: 处理静音时的逻辑和显示BUG
 def init():
     global pi_x
-    pi_x = volume_to_pi(volume_current())
-    pi_current.set(pi_to_volume(pi_x))
-    display()
-    
+    pi_x = volume_to_pi(volume_system())
+    if pi_x != -1:
+        pi_current.set(pi_to_volume(pi_x))
+        display()
+    else:
+        muted.set(True)
+        mute()
     
 
 init()
